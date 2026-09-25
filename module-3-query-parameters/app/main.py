@@ -4,8 +4,8 @@ from scalar_fastapi import get_scalar_api_reference
 
 
 app = FastAPI(
-    title="Module 3: HTTP Exceptions",
-    description="Learning proper error handling with HTTP exceptions",
+    title="Module 3: POST Method",
+    description="Learning POST requests and data creation",
     version="1.0.0"
 )
 
@@ -57,13 +57,13 @@ shipments: dict[int, dict[str, Any]] = {
 def read_root() -> dict[str, str]:
     """Root endpoint"""
     return {
-        "module": "Module 3: HTTP Exceptions",
-        "message": "Learning proper error handling!"
+        "module": "Module 3: POST Method",
+        "message": "Learning how to create new resources with POST!"
     }
 
 
 # ============================================
-# 🔍 Get Shipment by Query Parameter (WITH HTTP EXCEPTION)
+# 🔍 GET: Get Shipment by Query Parameter
 # ============================================
 
 @app.get("/shipment")
@@ -74,14 +74,12 @@ def get_shipment(id: int | None = None) -> dict[str, Any]:
     Examples:
     - /shipment?id=12701 → Get shipment 12701
     - /shipment          → Get latest shipment (no ID provided)
-    
-    Now with proper HTTP exceptions!
     """
     # If no ID provided, get the latest shipment
     if not id:
         id = max(shipments.keys())
     
-    # Check if ID exists - RAISE HTTP EXCEPTION if not
+    # Check if ID exists
     if id not in shipments:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -92,19 +90,22 @@ def get_shipment(id: int | None = None) -> dict[str, Any]:
 
 
 # ============================================
-# 🛤️ Get Shipment by Path Parameter (WITH HTTP EXCEPTION)
+# 🛤️ GET: Get Shipment by Path Parameter
 # ============================================
+
+@app.get("/shipment/latest")
+def get_latest_shipment() -> dict[str, Any]:
+    """Get the latest shipment (highest ID)"""
+    latest_id = max(shipments.keys())
+    return {
+        "message": "Latest shipment",
+        "data": shipments[latest_id]
+    }
+
 
 @app.get("/shipment/{shipment_id}")
 def get_shipment_by_path(shipment_id: int) -> dict[str, Any]:
-    """
-    Get shipment by ID using Path Parameter
-    
-    Example: /shipment/12701
-    
-    With proper HTTP exception handling!
-    """
-    # Check if ID exists
+    """Get shipment by ID using Path Parameter"""
     if shipment_id not in shipments:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -115,123 +116,74 @@ def get_shipment_by_path(shipment_id: int) -> dict[str, Any]:
 
 
 # ============================================
-# 📊 Get Latest Shipment
+# 📮 POST: Create New Shipment (NEW!)
 # ============================================
 
-@app.get("/shipment/latest")
-def get_latest_shipment() -> dict[str, Any]:
+@app.post("/shipment")
+def submit_shipment(content: str, weight: float) -> dict[str, Any]:
     """
-    Get the latest shipment (highest ID)
+    Create a new shipment
+    
+    Args:
+        content (str): The content of the shipment
+        weight (float): The weight in kilograms
+    
+    Returns:
+        The ID and data of the newly created shipment
     """
-    latest_id = max(shipments.keys())
-    return {
-        "message": "Latest shipment",
-        "data": shipments[latest_id]
-    }
-
-
-# ============================================
-# 🎯 Example: Bad Request (400)
-# ============================================
-
-@app.get("/validate-weight/{weight}")
-def validate_weight(weight: float) -> dict[str, Any]:
-    """
-    Validate shipment weight
-    Returns 400 Bad Request if weight is negative
-    """
-    if weight < 0:
+    # Validation: Check weight limit
+    if weight > 25:
+        raise HTTPException(
+            status_code=status.HTTP_406_NOT_ACCEPTABLE,
+            detail="Maximum weight limit is 25 kg. Our delivery partners don't accept heavier shipments."
+        )
+    
+    # Validation: Check for negative or zero weight
+    if weight <= 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Weight cannot be negative!"
+            detail="Weight must be greater than zero!"
         )
     
-    return {
+    # Validation: Check for empty content
+    if not content or not content.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Content cannot be empty!"
+        )
+    
+    # Generate new ID (max ID + 1)
+    new_id = max(shipments.keys()) + 1
+    
+    # Create new shipment entry
+    new_shipment = {
         "weight": weight,
-        "valid": True,
-        "message": "Weight is valid"
+        "content": content,
+        "status": "placed"  # New shipments start as "placed"
     }
-
-
-# ============================================
-# 🔐 Example: Unauthorized (401)
-# ============================================
-
-@app.get("/admin/shipments")
-def get_admin_shipments(api_key: str | None = None) -> dict[str, Any]:
-    """
-    Admin endpoint - requires API key
-    Returns 401 Unauthorized if no API key provided
-    """
-    # Simulate API key validation
-    VALID_API_KEY = "secret-admin-key-123"
     
-    if not api_key:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="API key is required!",
-            headers={"WWW-Authenticate": "ApiKey"}
-        )
+    # Add to our database
+    shipments[new_id] = new_shipment
     
-    if api_key != VALID_API_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API key!"
-        )
-    
+    # Return the new ID and data (Now matches dict[str, Any])
     return {
-        "message": "Welcome, Admin!",
-        "total_shipments": len(shipments),
-        "all_shipments": list(shipments.values())
+        "message": "Shipment created successfully",
+        "id": new_id,
+        "data": new_shipment
     }
 
 
 # ============================================
-# 🚫 Example: Forbidden (403)
+# 📋 GET: Get All Shipments (Bonus)
 # ============================================
 
-@app.get("/users/{user_id}/delete")
-def delete_user(user_id: int, role: str = "viewer") -> dict[str, str]:
-    """
-    Delete user - requires admin role
-    Returns 403 Forbidden if user is not admin
-    """
-    if role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to delete users!"
-        )
-    
+@app.get("/shipments")
+def get_all_shipments() -> dict[str, Any]:
+    """Get all shipments from the database"""
     return {
-        "message": f"User {user_id} deleted successfully"
+        "total": len(shipments),
+        "shipments": list(shipments.values())
     }
-
-
-# ============================================
-# 💥 Example: Internal Server Error (500)
-# ============================================
-
-@app.get("/process/{data}")
-def process_data(data: str) -> dict[str, Any]:
-    """
-    Process data - simulates internal error
-    Returns 500 Internal Server Error for specific cases
-    """
-    try:
-        # Simulate processing
-        if data == "error":
-            raise ValueError("Simulated internal error!")
-        
-        return {
-            "processed": data,
-            "status": "success"
-        }
-    
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal processing error: {str(e)}"
-        )
 
 
 # ============================================
