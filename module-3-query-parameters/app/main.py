@@ -4,8 +4,8 @@ from scalar_fastapi import get_scalar_api_reference
 
 
 app = FastAPI(
-    title="Module 3: POST Method",
-    description="Learning POST requests and data creation",
+    title="Module 3: Path & Query Parameters",
+    description="Learning to combine path and query parameters",
     version="1.0.0"
 )
 
@@ -57,8 +57,8 @@ shipments: dict[int, dict[str, Any]] = {
 def read_root() -> dict[str, str]:
     """Root endpoint"""
     return {
-        "module": "Module 3: POST Method",
-        "message": "Learning how to create new resources with POST!"
+        "module": "Module 3: Path & Query Parameters",
+        "message": "Learning how to combine path and query parameters!"
     }
 
 
@@ -116,7 +116,52 @@ def get_shipment_by_path(shipment_id: int) -> dict[str, Any]:
 
 
 # ============================================
-# 📮 POST: Create New Shipment (NEW!)
+# 🎯 NEW: Get Specific Field from Shipment (Path + Query Combined!)
+# ============================================
+
+@app.get("/shipment/field/{field}")
+def get_shipment_field(field: str, id: int) -> dict[str, Any]:
+    """
+    Get a specific field from a specific shipment
+    
+    This endpoint combines:
+    - Path Parameter: `field` (e.g., 'content', 'status', 'weight')
+    - Query Parameter: `id` (the shipment ID)
+    
+    Examples:
+    - /shipment/field/content?id=12701 → {"content": "glassware"}
+    - /shipment/field/status?id=12704  → {"status": "in transit"}
+    - /shipment/field/weight?id=12702  → {"weight": 2.3}
+    
+    Note:
+    - FastAPI automatically distinguishes between path and query parameters
+    - `field` is in the URL path → Path Parameter
+    - `id` is NOT in the URL path → Query Parameter (must use ?id=...)
+    """
+    # 1. Check if shipment exists
+    if id not in shipments:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Shipment with ID {id} not found"
+        )
+    
+    shipment = shipments[id]
+    
+    # 2. Check if field exists in the shipment
+    if field not in shipment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Field '{field}' does not exist in this shipment. Available fields: {list(shipment.keys())}"
+        )
+    
+    # 3. Return the field value in a dictionary (Best Practice)
+    # Note: Returning just the value (e.g., "glassware") is NOT recommended
+    # Always wrap in a dictionary for consistent API responses
+    return {field: shipment[field]}
+
+
+# ============================================
+# 📮 POST: Create New Shipment
 # ============================================
 
 @app.post("/shipment")
