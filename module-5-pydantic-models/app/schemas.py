@@ -1,7 +1,6 @@
+from pydantic import BaseModel, Field
 from enum import Enum
 import random
-
-from pydantic import BaseModel, Field
 
 class ShipmentStatus(str, Enum):
     PLACED = "placed"
@@ -10,7 +9,7 @@ class ShipmentStatus(str, Enum):
     DELIVERED = "delivered"
 
 # ============================================
-# 🏗️ Base Model (الحقول المشتركة)
+# 🏗️ Base Model
 # ============================================
 class BaseShipment(BaseModel):
     content: str = Field(..., max_length=100, description="Description of the shipment content")
@@ -22,22 +21,33 @@ class BaseShipment(BaseModel):
     client_email: str = Field(..., description="Client's email address")
 
 # ============================================
-# 📖 Read Model (للاستجابة)
+# 📦 Nested Model (Trick #1)
+# ============================================
+class Order(BaseModel):
+    """Nested model representing an order inside a shipment"""
+    title: str
+    description: str
+    price: float
+
+# ============================================
+# 📖 Read Model
 # ============================================
 class ShipmentRead(BaseShipment):
-    """Includes all base fields + status"""
     status: ShipmentStatus = Field(default=ShipmentStatus.PLACED, description="Current status")
+    order: Order | None = Field(default=None, description="Order details if available")
 
 # ============================================
-# 📮 Create Model (لإنشاء شحنة جديدة)
+# 📮 Create Model
 # ============================================
 class ShipmentCreate(BaseShipment):
-    """Inherits all base fields. Status is auto-set by server."""
-    pass
+    order: Order | None = Field(default=None, description="Order details")
 
 # ============================================
-# 🔄 Update Model (للتحديث الجزئي)
+# 🔄 Update Model (Trick #3 Preparation)
 # ============================================
 class ShipmentUpdate(BaseModel):
-    """Only allows updating the status"""
-    status: ShipmentStatus = Field(..., description="New status for the shipment")
+    """All fields are optional for partial updates"""
+    content: str | None = Field(default=None, max_length=100)
+    weight: float | None = Field(default=None, ge=1.0, le=25.0)
+    destination: int | None = Field(default=None)
+    status: ShipmentStatus | None = Field(default=None)

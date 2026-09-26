@@ -3,41 +3,39 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, status
 from scalar_fastapi import get_scalar_api_reference
 
-# استيراد النماذج الجديدة
 from .schemas import ShipmentCreate, ShipmentRead, ShipmentUpdate
 
 app = FastAPI(
-    title="Module 5: Different Models",
-    description="Using separate Pydantic models for different use cases",
+    title="Module 5: Pydantic Tips & Tricks",
+    description="Advanced Pydantic techniques",
     version="1.0.0",
 )
 
 # 📦 Simple Database
 shipments: dict[int, dict[str, Any]] = {
     12701: {"weight": 0.6, "content": "glassware", "status": "placed", "destination": 11001, "client_email": "test@test.com"},
-    12702: {"weight": 2.3, "content": "books", "status": "shipped", "destination": 11002, "client_email": "test@test.com"},
 }
 
 
 @app.get("/")
-def read_root() -> dict[str, str]:
-    return {"message": "Welcome to Module 5: Different Models"}
+def read_root():
+    return {"message": "Welcome to Pydantic Tips & Tricks"}
 
 # ============================================
-# 📮 CREATE: POST
+# 📮 CREATE: POST (With Nested Model)
 # ============================================
 
 
-@app.post("/shipment", status_code=status.HTTP_201_CREATED)
+@app.post("/shipment", status_code=status.HTTP_201_CREATED, response_model=ShipmentRead)
 def create_shipment(shipment: ShipmentCreate) -> dict[str, Any]:
     new_id = max(shipments.keys()) + 1
-    shipments[new_id] = {
-        "weight": shipment.weight,
-        "content": shipment.content,
-        "destination": shipment.destination,
-        "client_email": shipment.client_email,
-        "status": "placed",  # النظام يحدد الحالة تلقائياً
-    }
+
+    # Trick #2: Convert Pydantic model to dictionary and unpack it
+    new_shipment_data = shipment.model_dump()
+    new_shipment_data["status"] = "placed"  # Force initial status
+
+    shipments[new_id] = new_shipment_data
+
     return {
         "message": "Shipment created successfully",
         "id": new_id,
@@ -45,34 +43,38 @@ def create_shipment(shipment: ShipmentCreate) -> dict[str, Any]:
     }
 
 # ============================================
-# 📖 READ: GET (مع Response Model)
+# 🔄 PATCH: Partial Update (The Magic Trick!)
+# ============================================
+
+
+@app.patch("/shipment/{shipment_id}", response_model=ShipmentRead)
+def update_shipment(shipment_id: int, body: ShipmentUpdate):
+    if shipment_id not in shipments:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+
+    #  Trick #3: The Magic of exclude_none=True
+    # body.model_dump() returns ALL fields (missing ones are None).
+    # body.model_dump(exclude_none=True) returns ONLY the fields the client sent!
+
+    update_data = body.model_dump(exclude_none=True)
+
+    print(f"🔍 Full Model Dump: {body.model_dump()}")
+    print(f"✨ Filtered Dump (exclude_none=True): {update_data}")
+
+    # Update the database dictionary ONLY with the provided fields
+    shipments[shipment_id].update(update_data)
+
+    return shipments[shipment_id]
+
+# ============================================
+#  READ: GET
 # ============================================
 
 
 @app.get("/shipment/{shipment_id}", response_model=ShipmentRead)
 def get_shipment(shipment_id: int):
     if shipment_id not in shipments:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Shipment not found"
-        )
-    return shipments[shipment_id]
-
-# ============================================
-# 🔄 UPDATE: PATCH (مع Request & Response Models)
-# ============================================
-
-
-@app.patch("/shipment/{shipment_id}", response_model=ShipmentRead)
-def update_shipment(shipment_id: int, update_data: ShipmentUpdate):
-    if shipment_id not in shipments:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Shipment not found"
-        )
-
-    # تحديث الحقل المسموح به فقط
-    shipments[shipment_id]["status"] = update_data.status.value
+        raise HTTPException(status_code=404, detail="Shipment not found")
     return shipments[shipment_id]
 
 # ============================================
