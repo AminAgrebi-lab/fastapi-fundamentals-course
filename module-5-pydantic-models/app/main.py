@@ -1,8 +1,10 @@
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, status
-from pydantic import BaseModel
 from scalar_fastapi import get_scalar_api_reference
+
+from .schemas import ShipmentCreate
+
 
 app = FastAPI(
     title="Module 5: Pydantic Models",
@@ -37,24 +39,6 @@ shipments: dict[int, dict[str, Any]] = {
     12706: {"weight": 4.0, "content": "appliances", "status": "processing"},
     12707: {"weight": 1.8, "content": "toys", "status": "placed"},
 }
-
-
-# ============================================
-# 📦 Pydantic Model (NEW!)
-# ============================================
-
-class ShipmentCreate(BaseModel):
-    """
-    Pydantic model for creating a new shipment.
-    Automatically validates:
-    - Field types (str, float, int)
-    - Required fields (all fields are required by default)
-    """
-
-    content: str
-    weight: float
-    destination: int  # Zip code
-    client_email: str
 
 
 @app.get("/")
