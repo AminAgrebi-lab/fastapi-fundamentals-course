@@ -1,30 +1,32 @@
-import pydantic
+from pydantic import BaseModel, Field
+from enum import Enum
+import random
 
+class ShipmentStatus(str, Enum):
+    PLACED = "placed"
+    IN_TRANSIT = "in_transit"
+    FOR_DELIVERY = "for_delivery"
+    DELIVERED = "delivered"
 
-class ShipmentCreate(pydantic.BaseModel):
+class ShipmentCreate(BaseModel):
+    content: str = Field(..., max_length=100, description="Description of the shipment content")
+    weight: float = Field(..., ge=1.0, le=25.0, description="Weight in kg (1 to 25)")
+    destination: int | None = Field(
+        default_factory=lambda: random.randint(11000, 11999), 
+        description="Destination zip code"
+    )
+    client_email: str = Field(..., description="Client's email address")
+
+# ============================================
+# 📦 NEW: Response Model
+# ============================================
+class ShipmentResponse(BaseModel):
     """
-    Pydantic model for creating a new shipment.
-    Includes advanced validation and default values.
+    Model for the API response.
+    FastAPI will use this to validate and filter the returned data.
     """
-    content: str = pydantic.Field(
-        ..., 
-        max_length=100, 
-        description="Description of the shipment content (max 100 chars)"
-    )
-    
-    weight: float = pydantic.Field(
-        ..., 
-        ge=1.0, 
-        le=25.0, 
-        description="Weight of the shipment in kg (between 1 and 25 kg)"
-    )
-    
-    destination: int | None = pydantic.Field(
-        default=None,
-        description="Destination zip code. Auto-generated if not provided."
-    )
-    
-    client_email: str = pydantic.Field(
-        ..., 
-        description="Client's email address"
-    )
+    content: str
+    weight: float
+    destination: int | None
+    client_email: str
+    status: ShipmentStatus = Field(default=ShipmentStatus.PLACED, description="Current status")

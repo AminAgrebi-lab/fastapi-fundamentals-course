@@ -1,141 +1,77 @@
 from typing import Any
-
 from fastapi import FastAPI, HTTPException, status
 from scalar_fastapi import get_scalar_api_reference
 
-from .schemas import ShipmentCreate
-
+# استيراد الـ Models الجديدة
+from .schemas import ShipmentCreate, ShipmentResponse, ShipmentStatus
 
 app = FastAPI(
-    title="Module 5: Pydantic Models",
-    description="Learning data validation with Pydantic",
+    title="Module 5: Response Models",
+    description="Validating and filtering API responses",
     version="1.0.0",
 )
 
-
-# ============================================
-# 📚 Scalar API Documentation
-# ============================================
-
-@app.get("/scalar", include_in_schema=False)
-def get_scalar_docs():
-    """Custom Scalar API documentation"""
-    return get_scalar_api_reference(
-        openapi_url=app.openapi_url,
-        title=app.title + " - Scalar Docs",
-    )
-
-
-# ============================================
 # 📦 Simple Database
-# ============================================
-
 shipments: dict[int, dict[str, Any]] = {
-    12701: {"weight": 0.6, "content": "glassware", "status": "placed"},
-    12702: {"weight": 2.3, "content": "books", "status": "shipped"},
-    12703: {"weight": 1.1, "content": "electronics", "status": "delivered"},
-    12704: {"weight": 3.5, "content": "furniture", "status": "in transit"},
-    12705: {"weight": 0.9, "content": "clothing", "status": "returned"},
-    12706: {"weight": 4.0, "content": "appliances", "status": "processing"},
-    12707: {"weight": 1.8, "content": "toys", "status": "placed"},
+    12701: {"weight": 0.6, "content": "glassware", "status": "placed", "destination": 11001, "client_email": "test@test.com", "internal_note": "Fragile!"},
+    12702: {"weight": 2.3, "content": "books", "status": "shipped", "destination": 11002, "client_email": "test@test.com", "internal_note": "Heavy box"},
 }
-
 
 @app.get("/")
 def read_root() -> dict[str, str]:
-    """Root endpoint"""
-    return {
-        "module": "Module 5: Pydantic Models",
-        "message": "Learning automatic validation with Pydantic!",
-    }
-
+    return {"message": "Welcome to Module 5: Response Models"}
 
 # ============================================
-#  CREATE: POST - Using Pydantic Model
+# 📮 CREATE: POST
 # ============================================
-
 @app.post("/shipment", status_code=status.HTTP_201_CREATED)
 def create_shipment(shipment: ShipmentCreate) -> dict[str, Any]:
-    """
-    Create a new shipment using Pydantic model validation.
-
-    Request Body (JSON):
-    {
-        "content": "gaming laptop",
-        "weight": 3.5,
-        "destination": 12345,
-        "client_email": "ahmed@example.com"
-    }
-
-    Pydantic automatically validates:
-    - content must be string
-    - weight must be float
-    - destination must be int
-    - client_email must be string
-    - All fields are required
-    """
-    # Validation: Check weight limit
     if shipment.weight > 25:
-        raise HTTPException(
-            status_code=status.HTTP_406_NOT_ACCEPTABLE,
-            detail="Maximum weight limit is 25 kg.",
-        )
-
-    if shipment.weight <= 0:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Weight must be greater than zero!",
-        )
-
-    # Generate new ID
+        raise HTTPException(status_code=406, detail="Maximum weight limit is 25 kg.")
+    
     new_id = max(shipments.keys()) + 1
-
-    # Create new shipment using model data
     shipments[new_id] = {
         "weight": shipment.weight,
         "content": shipment.content,
         "destination": shipment.destination,
         "client_email": shipment.client_email,
         "status": "placed",
+        "internal_note": "New shipment" # حقل إضافي للتجربة
     }
-
-    return {
-        "message": "Shipment created successfully",
-        "id": new_id,
-        "data": shipments[new_id],
-    }
-
+    
+    return {"message": "Shipment created successfully", "id": new_id, "data": shipments[new_id]}
 
 # ============================================
-# 📖 READ: GET - Retrieve Shipments
+# 📖 READ: GET - مع Response Model!
 # ============================================
-
-@app.get("/shipment/latest")
-def get_latest_shipment() -> dict[str, Any]:
-    """Get the latest shipment"""
-    latest_id = max(shipments.keys())
-    return {
-        "message": "Latest shipment",
-        "data": shipments[latest_id],
-    }
-
-
-@app.get("/shipment/{shipment_id}")
-def get_shipment(shipment_id: int) -> dict[str, Any]:
-    """Get a specific shipment by ID"""
+@app.get("/shipment/{shipment_id}", response_model=ShipmentResponse)
+def get_shipment(shipment_id: int):
+    """
+    Get a specific shipment.
+    The response_model argument ensures:
+    1. Data is validated against ShipmentResponse.
+    2. Extra fields (like 'internal_note') are filtered out and NOT sent to the client.
+    """
     if shipment_id not in shipments:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Shipment with ID {shipment_id} not found",
         )
-
+    
+    # نرجع القاموس كما هو، و FastAPI سيتولى الباقي!
     return shipments[shipment_id]
 
+@app.get("/shipments", response_model=list[ShipmentResponse])
+def get_all_shipments():
+    """Get all shipments (returns a list of ShipmentResponse)"""
+    return list(shipments.values())
 
-@app.get("/shipments")
-def get_all_shipments() -> dict[str, Any]:
-    """Get all shipments"""
-    return {
-        "total": len(shipments),
-        "shipments": list(shipments.values()),
-    }
+# ============================================
+# 📚 Scalar API Documentation
+# ============================================
+@app.get("/scalar", include_in_schema=False)
+def get_scalar_docs():
+    return get_scalar_api_reference(
+        openapi_url=app.openapi_url,
+        title=app.title + " - Scalar Docs",
+    )
