@@ -244,6 +244,35 @@ def update_shipment_partial(
         "updated_fields": list(body.keys()),
         "data": shipments[shipment_id]
     }
+# ============================================
+# 🗑️ DELETE: DELETE - Remove Shipment
+# ============================================
+
+@app.delete("/shipment")
+def delete_shipment(id: int) -> dict[str, str]:
+    """
+    Delete a shipment by ID using a Query Parameter.
+    
+    Query Parameter:
+        id (int): The ID of the shipment to delete.
+        
+    Example: DELETE /shipment?id=12701
+    """
+    # 1. Check if the shipment exists
+    if id not in shipments:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Shipment with ID {id} not found"
+        )
+    
+    # 2. Remove the shipment from the dictionary
+    # The pop() method removes the key and returns its value
+    shipments.pop(id)
+    
+    # 3. Return a simple success message
+    return {
+        "detail": f"Shipment with ID {id} is deleted"
+    }
 
 # ============================================
 # 📚 Scalar API Documentation
